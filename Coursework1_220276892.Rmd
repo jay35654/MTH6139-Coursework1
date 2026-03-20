@@ -1,0 +1,470 @@
+---
+title: "MTH6139 Time Series" 
+subtitle: "Coursework 1" 
+author: "Jay Jhamt" 
+date: "Spring term 2025" 
+output: 
+  html_document:
+    toc: true
+    toc_float: true
+    theme: spacelab 
+    highlight: tango
+---
+ 
+```{r, echo=FALSE}
+# This code will display the QMUL logo at the top right of the page
+# Do not change this code
+htmltools::img(src = knitr::image_uri("images/QMlogo.png"),
+               alt = 'logo',
+               style = 'position:absolute; top:0; right:0; padding:10px; width:20%;')
+```
+
+# Introduction
+
+A time series is a sequence of data points recorded at regular time intervals. Time series analysis is used across a wide variety of fields and industries to understand patterns in data over time and make predictions about the future. 
+
+In R, time series data is stored as a ts object which keeps track of both the values and the time they were recorded. A time series consists of its trend, seasonality, holidays and noise. 
+
+The trend is the long term direction of the data, it shows whether the data is generally increasing, decreasing or staying the same. 
+
+The seasonality/seasonal component refers to repeating patterns that occur at regular intervals. An example of this is retail sales, sales tend to spike during the December Christmas period then plummet in January making them a seasonal component.
+
+Holidays are known, irregular events that cause predictable but non-periodic spikes or dips in data.
+
+Noise (or residuals) is the random variation in the data that cannot be explained by the trend or seasonality, it is entirely unpredictable.
+
+
+# What is Prophet?
+
+Prophet is a forecasting tool developed and released by Meta in 2017. It is available in both R and Python and is designed to make forecasting time series data accessible and easy to use for a variety of audiences, such as business owners or data scientists and analysts.
+
+According to Meta's official Prophet documentation (Meta Research, 2017), Prophet was designed to produce reliable forecasts to help with planning and goal setting. It has been used within Meta itself, which further demonstrates its reliability and effectiveness as a forecasting tool.
+
+Again as outlined by Randula (2024), Prophet works by breaking down a time series into its four key components, mentioned in the introduction, modelling each one individually before combining them to produce a final forecast.
+
+
+# Project Objectives
+
+Our objectives for this project are:
+
+- Explore the co2 dataset and understand its structure and properties.
+
+- Convert the data into a format suitable for Prophet and build a forecasting model.
+
+- Visualise the forecast and analyse the predicted trend in CO2 levels beyond 1997.
+
+- Understand the components of the forecast, including the trend and seasonal patterns throughout the year.
+
+- Analyse the results and evaluate whether the forecast looks realistic.
+
+- Apply Prophet to a second dataset (monthly car sales) to show its versatility across different types of time series data.
+
+- Directly compare the two datasets over the same timeframe, analysing differences in trend, seasonality and forecast uncertainty.
+
+# Section 1: CO2 Dataset
+
+## 1.1: Introducing the co2 dataset
+
+We will first use Meta's Prophet forecasting system to forecast atmospheric CO2 levels. The co2 dataset is a built-in R dataset that measures atmospheric CO2 concentrations in parts per million (ppm), recorded monthly from 1959 to 1997 at the Mauna Loa Observatory in Hawaii, we prove this below.
+
+```{r, message=FALSE, warning=FALSE}
+library(prophet)
+
+# Look at the co2 dataset
+start(co2)
+end(co2)
+frequency(co2)
+```
+
+The co2 dataset starts in 1959 and ends in 1997 with a frequency of 12, confirming it is measured monthly.
+
+```{r}
+plot(co2, 
+     main="Atmospheric CO2 Levels at Mauna Loa (1959-1997)",
+     xlab="Year", 
+     ylab="CO2 Concentration (ppm)")
+```
+
+Here, we have our raw data from the co2 data provided. The plot shows a clear upward trend in CO2 levels from around 315 ppm in 1959 to around 365 ppm in 1997. There is also a visible seasonal pattern where CO2 levels rise and fall repeatedly each year, creating a wave-like appearance on the graph.
+
+Additionally, we can implement the summary of our linear model (formed from the co2 data) and find out the trend from there.
+
+```{r}
+# Create a time variable
+time_index = time(co2)
+
+# Run a linear regression
+LinearModel = lm(co2 ~ time_index)
+
+# Show the results
+summary(LinearModel)
+```
+
+- time(co2) changes time values from the co2 ts object as numbers, for example 1959.000, 1959.083, 1959.167, etc representing each month.
+
+The summary shows us the slope of the trend line, we can see this from the "time_index" part which tells us how much CO2 levels are increasing on average per year. We can see it is 1.307, as it is positive the line will go upwards. As mentioned, it means CO2 levels are increasing approximately 1.307 ppm every year on average.
+
+We can also take a look at the "Multiple R-squared" figure, this tells us the R-squared value is 0.97 confirming that this upward trend is very strong, explaining 97% of the variation in the data.
+
+In general, we can use the summary to essentially view the mathematical part of how Prophet models each component of a time series.
+
+## 1.2: Converting the data for Prophet
+
+Prophet requires the data to be in a dataframe with a column called ds for dates and a column called y for values. We need to convert the co2 ts object into this format.
+
+```{r}
+d = data.frame(
+  ds = zoo::as.Date(time(co2)),
+  y = as.numeric(co2)
+)
+head(d)
+```
+
+- data.frame() creates a table with columns
+
+- zoo::as.Date() uses the zoo library to convert the values into a date that Prophet can understand
+
+- The head() function shows us the first few rows of our dataframe to confirm it has been set up correctly.
+
+
+## 1.3: Forecasting with Prophet, Visualising the data
+
+We now fit the Prophet model to our data and forecast 40 periods ahead (10 years into the future beyond 1997).
+
+
+```{r, message=FALSE, warning=FALSE}
+ProphetModel = prophet(d)
+FutureDates = make_future_dataframe(ProphetModel, 40, freq = "quarter")
+Forecast = predict(ProphetModel, FutureDates)
+plot(ProphetModel, Forecast)
+```
+
+The plot shows the forecast for CO2 levels. The black dots represent the actual data, the blue line shows the predicted trend and the shaded area shows the uncertainty interval.
+
+```{r, warning=FALSE}
+prophet_plot_components(ProphetModel, Forecast)
+```
+
+The components plot breaks down the forecast into its individual parts.
+
+The trend plot shows a consistent upward trend in CO2 levels from around 315 ppm in 1959 to a predicted 400 ppm beyond 1997. This suggests CO2 levels have been rising steadily over time with no signs of gradually evening out or going down.
+
+The yearly seasonality plot shows that CO2 levels tend to hit their peak around May and reach their lowest point around September each year. This is due to the fact its summer, so plants absorb more CO2 through photosynthesis. Whereas in the winter, plant activity slows and CO2 levels rise again.
+
+In this project we do not include any holiday effects as the co2 dataset is a natural atmospheric measurement and is not affected by special events or irregular occurrences.
+
+# Section 2: Car Sales Forecast
+
+## 2.1: Introducing a new dataset, monthly car sales
+
+In this section we apply Prophet to a different time series dataset to demonstrate how the tool can be used across different domains. We use a monthly car sales dataset sourced from Machine Learning Mastery (Brownlee, J.) to forecast future car sales.
+
+```{r}
+# Dataset sourced from Brownlee, J. Machine Learning Mastery
+# Available at: https://raw.githubusercontent.com/jbrownlee/
+# Datasets/master/monthly-car-sales.csv
+
+CarSales = read.csv(paste0(
+  "https://raw.githubusercontent.com/jbrownlee/",
+  "Datasets/master/monthly-car-sales.csv"
+))
+head(CarSales)
+```
+
+The head() function shows us the first few rows of the dataset. We can see it has two columns, one for the date and one for the number of cars sold. Before we can use Prophet we need to rename these columns to ds and y as Prophet requires.
+
+## 2.2: Preparing the Dataset
+
+Just like with the co2 dataset, we need to convert the car sales data into a format that Prophet can work with. This means renaming the columns to ds and y and converting the date column into a proper date format.
+
+```{r}
+# Rename columns for Prophet
+colnames(CarSales) = c("ds", "y")
+
+# Convert ds to date format
+CarSales$ds = as.Date(paste0(CarSales$ds, "-01"), 
+                      format = "%Y-%m-%d")
+head(CarSales)
+```
+
+
+The dataset now has the correct format for Prophet
+with a ds column containing the dates and a y column containing the number of cars sold each month. The as.Date() function converts the date column into a proper date format that Prophet can understand.
+
+## 2.3: Visualising the Raw Data
+
+Before running Prophet we should visualise the raw data to understand its structure and identify any trends or seasonal patterns.
+
+```{r}
+plot(CarSales$ds, CarSales$y,
+     type = "l",
+     main = "Monthly Car Sales",
+     xlab = "Year",
+     ylab = "Number of Cars Sold")
+```
+
+This plot shows the raw car sales data over time. We can see there is a general upward trend in car sales over the period, with a clear seasonal pattern repeating each year.
+
+## 2.4: Forecasting with Prophet
+
+We now fit the Prophet model to the car sales data and forecast 72 months ahead. Prophet will automatically detect the trend and seasonality in the data and use these to make predictions about future car sales.
+
+```{r, message=FALSE, warning=FALSE}
+CarModel = prophet(CarSales)
+CarFuture = make_future_dataframe(CarModel, 72, 
+                                  freq = "month")
+CarForecast = predict(CarModel, CarFuture)
+plot(CarModel, CarForecast)
+```
+
+The forecast plot shows the predicted car sales for the next 72 months (3 years). We can adjust this number very easily just by changing the 72 to whatever number we like, for example 240 to see the prediction in 20 years. Much like the co2 dataset, the black dots represent the actual data, the blue line shows the predicted trend and the shaded area shows the uncertainty interval. Also as with the co2 forecast, the uncertainty interval gets wider as we forecast further into the future, showcasing the increasing uncertainty of longer term predictions.
+
+## 2.5: Components of the Forecast
+
+Just like with the co2 dataset, we can use the prophet_plot_components() function to break down the forecast into its individual components and better understand what Prophet has detected in the data.
+
+```{r, warning=FALSE}
+prophet_plot_components(CarModel, CarForecast)
+```
+
+The components plot breaks down the car sales forecast into its individual parts.
+
+The trend plot shows the overall direction of car sales over time. We can see whether sales have been generally increasing or decreasing over the period.
+
+The yearly seasonality plot shows how car sales vary throughout the year. This is particularly interesting for car sales as we might expect lower sales at certain times of year, such as when people go on holidays in the summer.
+
+# Section 3: Comparing CO2 and Car Sales Forecasts
+
+## 3.1 Introduction & Subsetting the data
+
+In this section we directly compare the two datasets we have analysed, atmospheric CO2 levels and monthly car sales, to make the comparison fair we subset both datasets to the same timeframe of 1960 to 1970 as this is as far as the dataset for monthly car sales goes. By comparing the trend, seasonality and forecast uncertainty of both datasets we can gain a deeper understanding of how Prophet performs on different types of time series data, or perhaps find a correlation between the two datasets such as the cars purchased contributing to the CO2 in the atmosphere.
+
+```{r, message=FALSE, warning=FALSE}
+library(prophet)
+library(ggplot2)
+# Subset co2 data to only include up to 1970
+CO2Subset = d[d$ds <= as.Date("1970-01-01"), ]
+
+# Subset car sales data to match the same timeframe
+CarSubset = CarSales[CarSales$ds <= as.Date("1970-01-01"), ]
+
+# Run Prophet on subsetted CO2 data
+CO2SubsetModel = prophet(CO2Subset)
+CO2SubsetFuture = make_future_dataframe(CO2SubsetModel, 
+                                        40, 
+                                        freq = "quarter")
+CO2SubsetForecast = predict(CO2SubsetModel, 
+                            CO2SubsetFuture)
+
+# Run Prophet on subsetted Car Sales data
+CarSubsetModel = prophet(CarSubset)
+CarSubsetFuture = make_future_dataframe(CarSubsetModel, 
+                                        24, 
+                                        freq = "month")
+CarSubsetForecast = predict(CarSubsetModel, 
+                            CarSubsetFuture)
+```
+
+We subset both datasets to only include data from 1960 to 1970 so that we are comparing them over the same timeframe. This makes the comparison more fair and accurate as we are looking at the same period for both datasets.
+
+## 3.2 Comparing the Raw Data
+
+```{r, message=FALSE, warning=FALSE}
+# Normalise both datasets to the same scale
+CO2Normalised = data.frame(
+  ds = CO2Subset$ds,
+  y = scale(CO2Subset$y),
+  Dataset = "CO2"
+)
+
+CarNormalised = data.frame(
+  ds = CarSubset$ds,
+  y = scale(CarSubset$y),
+  Dataset = "Car Sales"
+)
+
+# Combine both datasets
+Combined = rbind(CO2Normalised, CarNormalised)
+
+# Plot both on the same graph
+ggplot(Combined, aes(x = ds, y = y, colour = Dataset)) +
+  geom_line() +
+  ggtitle("CO2 Levels vs Car Sales (Normalised, 1960-1970)") +
+  xlab("Year") +
+  ylab("Normalised Value") +
+  theme_minimal()
+```
+
+The plot above shows both datasets normalised to the same scale so we can compare them directly. Normalising the data means we subtract the mean and divide by the standard deviation, allowing us to compare datasets that have different units and scales.
+
+We can already see some key differences between the two datasets. The CO2 data shows a very smooth and consistent upward trend with regular seasonal fluctuations, while the car sales data shows a more irregular pattern with larger and more unpredictable fluctuations.
+
+## 3.3 Comparing the Trend
+
+```{r, message=FALSE, warning=FALSE}
+# Extract and normalise trend from both forecasts
+# Filter to only show up to 1970
+CO2Trend = data.frame(
+  ds = CO2SubsetForecast$ds,
+  trend = scale(CO2SubsetForecast$trend),
+  Dataset = "CO2"
+) 
+CO2Trend = CO2Trend[CO2Trend$ds <= as.Date("1970-01-01"), ]
+
+CarTrend = data.frame(
+  ds = CarSubsetForecast$ds,
+  trend = scale(CarSubsetForecast$trend),
+  Dataset = "Car Sales"
+)
+CarTrend = CarTrend[CarTrend$ds <= as.Date("1970-01-01"), ]
+
+# Combine trends
+CombinedTrend = rbind(CO2Trend, CarTrend)
+
+# Plot both trends
+ggplot(CombinedTrend, aes(x = ds, 
+                           y = trend, 
+                           colour = Dataset)) +
+  geom_line() +
+  ggtitle("Trend Comparison: CO2 vs Car Sales (Normalised, 1960-1970)") +
+  xlab("Year") +
+  ylab("Normalised Trend Value") +
+  theme_minimal()
+```
+
+- CO2SubsetForecast$trend: extracts the trend values from the CO2 forecast
+
+- scale(): normalises the trend values so they can be compared with car sales which are on a completely different scale
+
+- CO2Trend = CO2Trend[CO2Trend$ds <= as.Date("1970-01-01"), ]: Filters the CO2Trend dataframe to only keep rows where the date is on or before 1970
+
+- rbind(): stands for row bind, it stacks two dataframes on top of each other
+
+- aes(): stands for aesthetics, defines how the data maps to the plot
+
+- geom_line(): Draws the data as lines rather than dots or bars
+
+
+The trend comparison plot shows how the overall direction of both datasets compares over the same timeframe from 1960 to 1970. Both trends have been normalised to the same scale so they can be compared directly.
+
+The CO2 trend (blue) starts higher and shows a steady and consistent upward trend throughout the entire period from 1960 to 1970. The growth is gradual and linear with no sudden changes, reflecting the natural and industrial processes that drive CO2 levels upward.
+
+The car sales trend (red) by contrast starts much lower in 1960 but grows at a faster rate, eventually overtaking the CO2 trend around 1965. This suggests that car sales were growing more rapidly during this period, likely driven by increasing consumer demand for cars during the 1960s.
+
+Both datasets show an overall upward trend during this period, but the rate and consistency of growth differs significantly between them.
+
+## 3.4 Comparing the Seasonality
+
+```{r, message=FALSE, warning=FALSE}
+# Extract and normalise seasonality from both forecasts
+# Filter to only show up to 1970
+CO2Seasonality = data.frame(
+  ds = CO2SubsetForecast$ds,
+  yearly = scale(CO2SubsetForecast$yearly),
+  Dataset = "CO2"
+)
+CO2Seasonality = CO2Seasonality[CO2Seasonality$ds <= as.Date("1970-01-01"), ]
+
+CarSeasonality = data.frame(
+  ds = CarSubsetForecast$ds,
+  yearly = scale(CarSubsetForecast$yearly),
+  Dataset = "Car Sales"
+)
+CarSeasonality = CarSeasonality[CarSeasonality$ds <= as.Date("1970-01-01"), ]
+
+# Combine seasonality
+CombinedSeasonality = rbind(CO2Seasonality, 
+                             CarSeasonality)
+
+# Plot both seasonalities
+ggplot(CombinedSeasonality, aes(x = ds, 
+                                 y = yearly, 
+                                 colour = Dataset)) +
+  geom_line() +
+  ggtitle("Seasonality Comparison: CO2 vs Car Sales (Normalised, 1960-1970)") +
+  xlab("Year") +
+  ylab("Normalised Seasonal Effect") +
+  theme_minimal()
+```
+
+
+The seasonality comparison plot shows the repeating seasonal patterns in both datasets over the same timeframe.
+
+The CO2 seasonality shows a very regular and consistent wave pattern that repeats every year. CO2 levels peak around May and reach their lowest point around September each year due to plant photosynthesis activity during summer months.
+
+The car sales seasonality shows a more complex and irregular seasonal pattern. Car sales tend to spike at certain points in the year, this could be due to people realising their current car is not suitable for winter driving conditions like ice and snow. It could also be because breakdowns are more common in cold weather, prompting people to replace older vehicles.
+
+## 3.5 Comparing the Forecast Uncertainty
+
+```{r, message=FALSE, warning=FALSE}
+# Filter CO2 forecast to only show up to 1970
+CO2UncertaintyFiltered = CO2SubsetForecast[
+  CO2SubsetForecast$ds <= as.Date("1970-01-01"), ]
+
+# Filter Car Sales forecast to only show up to 1970
+CarUncertaintyFiltered = CarSubsetForecast[
+  CarSubsetForecast$ds <= as.Date("1970-01-01"), ]
+
+# Plot CO2 uncertainty
+ggplot(CO2UncertaintyFiltered, aes(x = ds)) +
+  geom_ribbon(aes(ymin = yhat_lower, 
+                  ymax = yhat_upper), 
+              fill = "blue", alpha = 0.2) +
+  geom_line(aes(y = yhat), colour = "blue") +
+  ggtitle("CO2 Forecast Uncertainty (1960-1970)") +
+  xlab("Year") +
+  ylab("CO2 Concentration (ppm)") +
+  theme_minimal()
+
+# Plot Car Sales uncertainty
+ggplot(CarUncertaintyFiltered, aes(x = ds)) +
+  geom_ribbon(aes(ymin = yhat_lower, 
+                  ymax = yhat_upper), 
+              fill = "red", alpha = 0.2) +
+  geom_line(aes(y = yhat), colour = "red") +
+  ggtitle("Car Sales Forecast Uncertainty (1960-1970)") +
+  xlab("Year") +
+  ylab("Number of Cars Sold") +
+  theme_minimal()
+```
+
+The uncertainty plots show how confident Prophet is in its predictions for each dataset over the same timeframe.
+
+The CO2 forecast shows a relatively narrow uncertainty interval, meaning Prophet is quite confident in its predictions. This is because CO2 levels follow a very consistent and predictable pattern with a strong linear trend and regular seasonality.
+
+The car sales forecast shows a wider uncertainty interval, meaning Prophet is less confident in its predictions. This reflects the more irregular and unpredictable nature of car sales data which is influenced by many external factors that are difficult to forecast.
+
+## 3.6 Summary of Comparison
+
+In summary, comparing the two datasets over the same timeframe from 1960 to 1970 reveals some interesting differences in how Prophet handles different types of time series data:
+
+- The CO2 dataset has a stronger and more consistent trend making it easier for Prophet to forecast accurately with a narrow uncertainty interval
+
+- The car sales dataset has a more complex and irregular pattern resulting in a wider uncertainty interval and less confident predictions
+
+- Both datasets show clear yearly seasonality but the nature of the seasonal patterns is different, reflecting the different underlying processes driving each dataset
+
+- Prophet handles both datasets effectively demonstrating its versatility as a forecasting tool across different domains
+
+
+# Section 4: Conclusion
+
+In this project we used Meta's Prophet forecasting system to analyse and forecast two different time series datasets — atmospheric CO2 levels and monthly car sales. For the CO2 dataset, Prophet identified a clear and consistent upward trend of approximately 1.307 ppm per year, with a strong yearly seasonal pattern. The forecast predicts CO2 levels will continue to rise beyond 1997 with relatively narrow uncertainty intervals reflecting the predictability of the data. For the car sales dataset, Prophet identified an upward trend in sales with a more complex seasonal pattern. The forecast showed wider uncertainty intervals reflecting the less predictable nature of car sales data.
+
+When comparing the two datasets over the same timeframe from 1960 to 1970, we found that the CO2 dataset had a stronger and more consistent trend making it easier for Prophet to forecast accurately, while the car sales dataset showed more irregular patterns resulting in less confident predictions.
+
+Overall this project has demonstrated that Prophet is a powerful and versatile forecasting tool that can be applied effectively to different types of time series data.
+
+# References
+
+- Taylor, S.J. and Letham, B. (2018). Forecasting at scale. The American Statistician, 72(1), pp.37-45. Available at: https://facebook.github.io/prophet/
+
+- Meta Research (2017). Prophet: Forecasting at Scale. Available at: https://facebook.github.io/prophet/
+
+- GeeksforGeeks (2024). Time Series Analysis using Facebook Prophet. Available at: https://www.geeksforgeeks.org/data-science/time-series-analysis-using-facebook-prophet/
+
+- Randula, D. (2024). Prophet by Meta: A Powerful Tool for Time Series Forecasting. Available at: https://medium.com/@dinethrandula2001
+
+- R Documentation. co2: Mauna Loa Atmospheric CO2 Concentration. Available at: https://stat.ethz.ch/R-manual/R-devel/library/datasets/html/co2.html
+  
+- Brownlee, J. Machine Learning Mastery. Monthly Car Sales Dataset. Available at: https://raw.githubusercontent.com/jbrownlee/Datasets/master/monthly-car-sales.csv
